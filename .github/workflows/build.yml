@@ -60,7 +60,7 @@ jobs:
       - name: Restore customized AndroidManifest (INTERNET + cleartext traffic)
         run: cp /tmp/manifest.bak android/app/src/main/AndroidManifest.xml
 
-      - name: Bump compileSdk/targetSdk to 36
+      - name: Bump compileSdk to 36 for all Android subprojects
         # image_picker / file_picker 引入的 flutter_plugin_android_lifecycle 要求 compileSdk >= 36；
         # 插件子工程默认按 34 编译，故强制所有 Android 子工程（含插件）使用 compileSdk 36。
         run: |
@@ -72,11 +72,11 @@ jobs:
           printf '    rootProject.subprojects.forEach { p ->\n' >> "$F"
           printf '        val a = p.extensions.findByName("android")\n' >> "$F"
           printf '        if (a != null) {\n' >> "$F"
-          printf '            (a as com.android.build.gradle.BaseExtension).compileSdkVersion = 36\n' >> "$F"
+          printf '            (a as com.android.build.api.dsl.CommonExtension).compileSdk = 36\n' >> "$F"
           printf '        }\n' >> "$F"
           printf '    }\n' >> "$F"
           printf '}\n' >> "$F"
-          echo "---- $F ----"; grep -n "compileSdk\|targetSdk\|compileSdkVersion" "$F" | head
+          echo "---- $F ----"; grep -n "compileSdk" "$F" | head
 
       - name: Ensure gradlew is executable
         run: chmod +x android/gradlew
