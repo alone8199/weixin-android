@@ -16,6 +16,12 @@ dependencies:
   file_picker: ^8.1.7
   url_launcher: ^6.3.1
 
+# image_picker / file_picker 传递依赖的 flutter_plugin_android_lifecycle 新版要求 compileSdk 36，
+# 而当前 Flutter 模板默认 compileSdk 34，会导致 AAR 元数据检查失败。
+# 固定到较旧版本（minCompileSdk 34），即可在 compileSdk 34 下正常构建。
+dependency_overrides:
+  flutter_plugin_android_lifecycle: 2.0.23
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
