@@ -65,8 +65,10 @@ jobs:
         run: |
           F=android/app/build.gradle.kts
           [ -f android/app/build.gradle ] && F=android/app/build.gradle
-          sed -i -E 's/^( *)compileSdk = .*/\1compileSdk = 36/; s/^( *)targetSdk = .*/\1targetSdk = 36/' "$F"
-          echo "---- $F ----"; grep -n "compileSdk\|targetSdk" "$F" | head
+          # 同时提升 app 的 compileSdk/targetSdk 与 flutter 扩展的 compileSdkVersion/targetSdkVersion，
+          # 后者会被 image_picker/file_picker 等插件的子工程继承，否则插件仍按 34 编译而报错。
+          sed -i -E 's/^( *)compileSdk = .*/\1compileSdk = 36/; s/^( *)targetSdk = .*/\1targetSdk = 36/; s#^( *)source = "\.\./\.\."#\1source = "../.."\n\1compileSdkVersion = 36\n\1targetSdkVersion = 36#' "$F"
+          echo "---- $F ----"; grep -n "compileSdk\|targetSdk\|source" "$F" | head
 
       - name: Ensure gradlew is executable
         run: chmod +x android/gradlew
