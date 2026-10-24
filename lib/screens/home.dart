@@ -37,12 +37,14 @@ class _HomeState extends State<Home> {
             onDestinationSelected: (i) => setState(() => _idx = i),
             destinations: [
               NavigationDestination(
-                icon: const Icon(Icons.chat_bubble_outline),
+                icon: totalUnread > 0
+                    ? Badge(
+                        label: Text('$totalUnread'),
+                        child: const Icon(Icons.chat_bubble_outline),
+                      )
+                    : const Icon(Icons.chat_bubble_outline),
                 selectedIcon: const Icon(Icons.chat_bubble),
                 label: '聊天',
-                badge: totalUnread > 0
-                    ? Badge(label: Text('$totalUnread'))
-                    : null,
               ),
               const NavigationDestination(
                 icon: Icon(Icons.contacts_outlined),

@@ -29,7 +29,8 @@ class AppState extends ChangeNotifier {
   final Map<String, List<String>> typing = {};
 
   // —— 流 ——
-  final StreamController<void> onChange = StreamController<void>.broadcast();
+  final StreamController<void> _onChange = StreamController<void>.broadcast();
+  Stream<void> get onChange => _onChange.stream;
   final StreamController<String> toast = StreamController<String>.broadcast();
 
   IO.Socket? _socket;
@@ -73,8 +74,11 @@ class AppState extends ChangeNotifier {
     // 每次创建新连接都要重新绑定监听：切服务器 / 重新登录都会 new 一个 socket，
     // 不复用旧的监听，否则新 socket 收不到任何事件。
     _socket?.disconnect();
-    _socket = IO.io(serverUrl,
-        IO.Options(autoConnect: true, transports: ['websocket'], timeout: 8000));
+    _socket = IO.io(serverUrl, <String, dynamic>{
+      'autoConnect': true,
+      'transports': ['websocket'],
+      'timeout': 8000,
+    });
     _bind();
     _socket!.connect();
   }
@@ -84,11 +88,11 @@ class AppState extends ChangeNotifier {
     s.onConnect((_) {
       connected = true;
       if (meName.isNotEmpty) s.emit('login', {'name': meName});
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.onDisconnect((_) {
       connected = false;
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('ready', (data) {
       loggedIn = true;
@@ -101,7 +105,7 @@ class AppState extends ChangeNotifier {
       moments = List<Map<String, dynamic>>.from(st['moments'] ?? []);
       users = List<Map<String, dynamic>>.from(st['users'] ?? []);
       online = List<String>.from(st['online'] ?? []);
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('message', (data) {
       final cid = data['chatId'] as String;
@@ -114,7 +118,7 @@ class AppState extends ChangeNotifier {
       if (!(cid == activeChat && isChatActive)) {
         if (t != 'system') unread[cid] = (unread[cid] ?? 0) + 1;
       }
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('message_update', (data) {
       final cid = data['chatId'] as String;
@@ -125,25 +129,25 @@ class AppState extends ChangeNotifier {
           if (list[i]['id'] == msg['id']) list[i] = msg;
         }
       }
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('message_deleted', (data) {
       final cid = data['chatId'] as String;
       final mid = data['msgId'] as String;
       final list = chats[cid]?['messages'] as List?;
       if (list != null) list.removeWhere((m) => m['id'] == mid);
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('chat_pinned', (data) {
       final cid = data['chatId'] as String;
       if (chats[cid] != null) chats[cid]['pinned'] = data['pinned'];
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('chat_removed', (data) {
       final cid = data['chatId'] as String;
       chats.remove(cid);
       if (activeChat == cid) activeChat = null;
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('typing', (data) {
       final cid = data['chatId'] as String;
@@ -155,19 +159,19 @@ class AppState extends ChangeNotifier {
       } else {
         list.remove(name);
       }
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('users', (data) {
       online = List<String>.from(data['online'] ?? []);
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('moments', (data) {
       moments = List<Map<String, dynamic>>.from(data['moments'] ?? []);
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('contacts', (data) {
       contacts = List<Map<String, dynamic>>.from(data['contacts'] ?? []);
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('add_result', (data) {
       final ok = data['ok'] as bool;
@@ -175,14 +179,14 @@ class AppState extends ChangeNotifier {
           ? '已添加「${data['name']}」为好友'
           : (data['error'] ?? '添加失败');
       toast.add(msg);
-      onChange.add(null);
+      _onChange.add(null);
     });
     s.on('friend_removed', (data) {
       final name = data['name'] as String;
       final cid = dmId(meName, name);
       chats.remove(cid);
       toast.add('已删除好友「$name」');
-      onChange.add(null);
+      _onChange.add(null);
     });
   }
 
@@ -242,7 +246,7 @@ class AppState extends ChangeNotifier {
       _socket?.emit('typing', {'chatId': chatId, 'on': on});
 
   // —— 辅助 ——
-  String activeChat = '';
+  String? activeChat;
   bool isChatActive = false;
 
   String dmId(String a, String b) {
@@ -288,7 +292,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void notifyListeners() {
-    onChange.add(null);
+    _onChange.add(null);
     super.notifyListeners();
   }
 }
