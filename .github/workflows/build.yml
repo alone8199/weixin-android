@@ -43,6 +43,9 @@ jobs:
       - name: Restore customized AndroidManifest (INTERNET + cleartext traffic)
         run: cp /tmp/manifest.bak android/app/src/main/AndroidManifest.xml
 
+      - name: Ensure gradlew is executable
+        run: chmod +x android/gradlew
+
       - name: Flutter pub get
         run: flutter pub get
 
