@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../socket_service.dart';
 import '../utils.dart';
 
@@ -17,6 +19,7 @@ class _ChatDetailState extends State<ChatDetail> {
   final TextEditingController _ctl = TextEditingController();
   final ScrollController _scroll = ScrollController();
   Timer? _typingTimer;
+  bool _uploading = false;
   final List<String> _quick = ['😊', '👍', '😂', '🎉', '❤️', '🤝', '🌹', '😎'];
 
   @override
@@ -59,15 +62,58 @@ class _ChatDetailState extends State<ChatDetail> {
   }
 
   void _sendImage() async {
-    final url = await makeGradientImageDataUrl();
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+        source: ImageSource.gallery, maxWidth: 1280, imageQuality: 85);
+    if (x == null) return;
+    setState(() => _uploading = true);
+    final url = await app.uploadFile(x.path, fileName: x.name);
+    setState(() => _uploading = false);
+    if (url == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('图片上传失败')));
+      return;
+    }
     app.send(widget.cid, 'image', {'src': url});
   }
 
-  void _sendFile() {
-    final names = ['周报.docx', '设计稿.png', '需求说明.pdf', '代码.zip'];
-    final n = names[Random().nextInt(names.length)];
-    app.send(widget.cid, 'file',
-        {'name': n, 'size': '${(Random().nextInt(900) + 100)} KB'});
+  void _sendFile() async {
+    final result = await FilePicker.platform.pickFiles();
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final path = file.path;
+    setState(() => _uploading = true);
+    String? url;
+    if (path != null) {
+      url = await app.uploadFile(path, fileName: file.name);
+    } else if (file.bytes != null) {
+      url = await app.uploadBytes(file.bytes!, file.name);
+    }
+    setState(() => _uploading = false);
+    if (url == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('文件上传失败')));
+      return;
+    }
+    app.send(widget.cid, 'file', {
+      'name': file.name,
+      'size': _fmtBytes(file.size),
+      'url': url,
+    });
+  }
+
+  String _fmtBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  void _openFile(String url) async {
+    final full = resolveServerUrl(url);
+    final uri = Uri.parse(full);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   void _sendRedpacket() {
@@ -193,12 +239,18 @@ class _ChatDetailState extends State<ChatDetail> {
       ImageProvider? img;
       if (src.startsWith('data:image')) {
         img = MemoryImage(base64Decode(src.substring(src.indexOf(',') + 1)));
+      } else if (src.isNotEmpty) {
+        img = NetworkImage(resolveServerUrl(src));
       }
       body = img == null
           ? const Text('[图片]')
           : ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image(image: img, width: 160),
+              child: Image(
+                image: img,
+                width: 160,
+                errorBuilder: (_, __, ___) => const Text('[图片]'),
+              ),
             );
     } else if (type == 'redpacket') {
       body = InkWell(
@@ -236,21 +288,31 @@ class _ChatDetailState extends State<ChatDetail> {
         ),
       );
     } else if (type == 'file') {
-      body = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.insert_drive_file, size: 30),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(m['name'] ?? '文件',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
-              Text(m['size'] ?? '',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
-          ),
-        ],
+      final url = m['url'] as String?;
+      body = InkWell(
+        onTap: (url != null && url.isNotEmpty) ? () => _openFile(url) : null,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.insert_drive_file, size: 30),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m['name'] ?? '文件',
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(m['size'] ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+            if (url != null && url.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child:
+                    Icon(Icons.open_in_new, size: 16, color: Colors.grey),
+              ),
+          ],
+        ),
       );
     } else {
       body = Text(m['text'] ?? '',
@@ -265,7 +327,7 @@ class _ChatDetailState extends State<ChatDetail> {
             fromMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!fromMe) gradientAvatar(senderName, size: 36),
+          if (!fromMe) avatarWidget(senderName, size: 36),
           const SizedBox(width: 8),
           Flexible(
             child: Column(
@@ -294,7 +356,7 @@ class _ChatDetailState extends State<ChatDetail> {
           ),
           if (fromMe) ...[
             const SizedBox(width: 8),
-            gradientAvatar(app.meName, size: 36),
+            avatarWidget(app.meName, size: 36),
           ],
         ],
       ),
@@ -396,8 +458,16 @@ class _ChatDetailState extends State<ChatDetail> {
                 ),
               ),
             ),
-            IconButton(icon: const Icon(Icons.image_outlined), onPressed: _sendImage),
-            IconButton(icon: const Icon(Icons.attach_file_outlined), onPressed: _sendFile),
+            if (_uploading)
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else ...[
+              IconButton(icon: const Icon(Icons.image_outlined), onPressed: _sendImage),
+              IconButton(icon: const Icon(Icons.attach_file_outlined), onPressed: _sendFile),
+            ],
             IconButton(icon: const Icon(Icons.redeem_outlined), onPressed: _sendRedpacket),
             const SizedBox(width: 4),
             Expanded(

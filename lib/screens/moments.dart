@@ -38,7 +38,7 @@ class Moments extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          gradientAvatar(author, size: 40),
+                          avatarWidget(author, size: 40),
                           const SizedBox(width: 10),
                           Text(author,
                               style: const TextStyle(fontWeight: FontWeight.w600)),

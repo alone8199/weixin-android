@@ -3,6 +3,15 @@
     <!-- 允许访问局域网服务器（http://192.168.1.5:5000），必须声明 INTERNET 权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- 选择并上传图片 / 文件所需权限 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <application
         android:label="味信"
         android:name="${applicationName}"

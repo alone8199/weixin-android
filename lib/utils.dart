@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'socket_service.dart';
 
 const List<Color> _avatarPalette = [
   Color(0xFF07C160),
@@ -109,4 +110,32 @@ String fmtFull(int ts) {
   if (ts == 0) return '';
   final d = DateTime.fromMillisecondsSinceEpoch(ts);
   return '${d.month}月${d.day}日 ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+}
+
+/// 根据昵称渲染头像：优先使用自定义头像（网络图片），否则渐变首字母兜底
+Widget avatarWidget(String name, {double size = 44}) {
+  final url = app.avatarOf(name);
+  if (url != null && url.isNotEmpty) {
+    final full = resolveServerUrl(url);
+    return ClipOval(
+      child: Image.network(
+        full,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => gradientAvatar(name, size: size),
+      ),
+    );
+  }
+  return gradientAvatar(name, size: size);
+}
+
+/// 把服务器返回的相对 URL（/uploads/xxx）拼成可访问的完整地址
+String resolveServerUrl(String src) {
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  if (src.startsWith('/')) {
+    final base = app.serverUrl.replaceAll(RegExp(r'/$'), '');
+    return base + src;
+  }
+  return src;
 }

@@ -73,7 +73,7 @@ class ChatList extends StatelessWidget {
               final unread = app.unread[cid] ?? 0;
 
               return ListTile(
-                leading: gradientAvatar(e['name']),
+                leading: avatarWidget(e['name']),
                 title: Text(e['name'],
                     style: const TextStyle(fontWeight: FontWeight.w500)),
                 subtitle: Text(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../socket_service.dart';
 import '../utils.dart';
 
@@ -21,7 +22,31 @@ class Profile extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    gradientAvatar(app.meName, size: 64),
+                    InkWell(
+                      onTap: () => _pickAvatar(context),
+                      borderRadius: BorderRadius.circular(32),
+                      child: Stack(
+                        children: [
+                          avatarWidget(app.meName, size: 64),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Theme.of(context).colorScheme.surface,
+                                    width: 2),
+                              ),
+                              child: const Icon(Icons.camera_alt,
+                                  size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(width: 16),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,8 +54,12 @@ class Profile extends StatelessWidget {
                         Text(app.meName,
                             style: const TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
                         Text('味信号: ${app.meWxid.isNotEmpty ? app.meWxid : 'wxid_demo'}',
                             style: const TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 4),
+                        const Text('点击头像可自定义',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
                       ],
                     ),
                   ],
@@ -74,6 +103,18 @@ class Profile extends StatelessWidget {
       title: Text(label),
       trailing: Text(value, style: const TextStyle(color: Colors.grey)),
     );
+  }
+
+  void _pickAvatar(BuildContext context) async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+        source: ImageSource.gallery, maxWidth: 512, imageQuality: 90);
+    if (x == null) return;
+    final ok = await app.setAvatar(x.path);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('头像上传失败，请检查服务器连接')));
+    }
   }
 
   void _editServer(BuildContext context) {

@@ -62,7 +62,7 @@ class Contacts extends StatelessWidget {
                           title: Text('还没有好友，在下方添加',
                               style: TextStyle(color: Colors.grey))),
                     ...friends.map((f) => ListTile(
-                          leading: gradientAvatar(f['name']),
+                          leading: avatarWidget(f['name']),
                           title: Text(f['name']),
                           subtitle: Text(
                               app.online.contains(f['name']) ? '在线' : '离线',
@@ -102,7 +102,7 @@ class Contacts extends StatelessWidget {
                           style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                     ...others.map((u) => ListTile(
-                          leading: gradientAvatar(u['name']),
+                          leading: avatarWidget(u['name']),
                           title: Text(u['name']),
                           subtitle: Text(
                               (u['online'] ?? false) ? '在线' : '离线',

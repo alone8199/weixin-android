@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'constants.dart';
@@ -19,11 +20,14 @@ class AppState extends ChangeNotifier {
   // —— 数据 ——
   String meName = '';
   String meWxid = '';
+  String meAvatar = ''; // 我的自定义头像 URL（空表示未设置）
   List<Map<String, dynamic>> contacts = []; // 好友 [{name,wxid}]
   Map<String, dynamic> chats = {}; // cid -> {pinned:bool, messages:List<Map>}
   List<Map<String, dynamic>> moments = [];
-  List<Map<String, dynamic>> users = []; // 目录 [{name,wxid,online}]
+  List<Map<String, dynamic>> users = []; // 目录 [{name,wxid,online,avatar}]
   List<String> online = [];
+  // 昵称 -> 头像 URL，便于各处头像组件根据昵称查找
+  final Map<String, String> avatarMap = {};
 
   final Map<String, int> unread = {};
   final Map<String, List<String>> typing = {};
@@ -100,11 +104,13 @@ class AppState extends ChangeNotifier {
       final me = data['me'] as Map<String, dynamic>? ?? {};
       meName = me['name'] ?? meName;
       meWxid = me['wxid'] ?? '';
+      meAvatar = me['avatar'] ?? '';
       contacts = List<Map<String, dynamic>>.from(st['contacts'] ?? []);
       chats = Map<String, dynamic>.from(st['chats'] ?? {});
       moments = List<Map<String, dynamic>>.from(st['moments'] ?? []);
       users = List<Map<String, dynamic>>.from(st['users'] ?? []);
       online = List<String>.from(st['online'] ?? []);
+      _rebuildAvatarMap();
       _onChange.add(null);
     });
     s.on('message', (data) {
@@ -163,6 +169,10 @@ class AppState extends ChangeNotifier {
     });
     s.on('users', (data) {
       online = List<String>.from(data['online'] ?? []);
+      if (data['users'] is List) {
+        users = List<Map<String, dynamic>>.from(data['users']);
+      }
+      _rebuildAvatarMap();
       _onChange.add(null);
     });
     s.on('moments', (data) {
@@ -244,6 +254,78 @@ class AppState extends ChangeNotifier {
       _socket?.emit('delete_chat', {'chatId': chatId});
   void setTyping(String chatId, bool on) =>
       _socket?.emit('typing', {'chatId': chatId, 'on': on});
+
+  // —— 头像 / 上传 ——
+  /// 将用户目录中的头像 URL 汇总到 avatarMap，便于按昵称查头像
+  void _rebuildAvatarMap() {
+    avatarMap.clear();
+    for (final u in users) {
+      final name = u['name'] as String?;
+      final av = u['avatar'] as String?;
+      if (name != null && av != null && av.isNotEmpty) {
+        avatarMap[name] = av;
+      }
+    }
+    if (meName.isNotEmpty && meAvatar.isNotEmpty) {
+      avatarMap[meName] = meAvatar;
+    }
+  }
+
+  /// 根据昵称取头像 URL（自定义头像优先，无则返回 null 由 UI 兜底）
+  String? avatarOf(String name) {
+    if (name == meName && meAvatar.isNotEmpty) return meAvatar;
+    return avatarMap[name];
+  }
+
+  /// 上传文件到服务端 /upload 接口，返回服务器相对 URL（如 /uploads/xxx.png）
+  Future<String?> uploadFile(String filePath, {String? fileName}) async {
+    try {
+      final uri = Uri.parse(serverUrl.replaceAll(RegExp(r'/$'), '') + '/upload');
+      final req = http.MultipartRequest('POST', uri);
+      req.files.add(await http.MultipartFile.fromPath(
+          'file', filePath,
+          filename: fileName ?? filePath.split('/').last.split('\\').last));
+      final resp = await req.send();
+      if (resp.statusCode != 200) return null;
+      final body = await resp.stream.bytesToString();
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      if (json['ok'] == true) return json['url'] as String?;
+      return null;
+    } catch (e) {
+      print('[upload] 失败: $e');
+      return null;
+    }
+  }
+
+  /// 以字节方式上传（适用于 Android SAF 拿不到真实路径的文档）
+  Future<String?> uploadBytes(List<int> bytes, String fileName) async {
+    try {
+      final uri = Uri.parse(serverUrl.replaceAll(RegExp(r'/$'), '') + '/upload');
+      final req = http.MultipartRequest('POST', uri);
+      req.files.add(http.MultipartFile.fromBytes('file', bytes,
+          filename: fileName));
+      final resp = await req.send();
+      if (resp.statusCode != 200) return null;
+      final body = await resp.stream.bytesToString();
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      if (json['ok'] == true) return json['url'] as String?;
+      return null;
+    } catch (e) {
+      print('[upload] 失败: $e');
+      return null;
+    }
+  }
+
+  /// 设置我的头像：上传图片并通知服务端广播
+  Future<bool> setAvatar(String imagePath) async {
+    final url = await uploadFile(imagePath);
+    if (url == null) return false;
+    meAvatar = url;
+    _rebuildAvatarMap();
+    _socket?.emit('set_avatar', {'url': url});
+    notifyListeners();
+    return true;
+  }
 
   // —— 辅助 ——
   String? activeChat;
